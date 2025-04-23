@@ -8,7 +8,7 @@ A beautiful terminal-based timer with ASCII art display and customizable configu
 
 - Large, easy-to-read ASCII art digits
 - Colorful terminal interface with customizable colors
-- Both countdown timer and stopwatch functionality
+- Countdown timer, stopwatch, and Pomodoro functionality
 - Multiple time formats with overflow handling
 - Configurable visual options
 - Simple keyboard controls
@@ -27,6 +27,9 @@ clockit -c 5:00
 
 # Start a stopwatch
 clockit -s
+
+# Start a Pomodoro timer
+clockit -p
 ```
 
 ## Installation
@@ -35,7 +38,7 @@ For detailed installation instructions, see the [Installation Guide](https://git
 
 ## Usage
 
-Clockit offers both countdown timer and stopwatch functionality:
+Clockit offers countdown timer, stopwatch, and Pomodoro functionality:
 
 ```bash
 # Start a 5-minute timer
@@ -49,6 +52,9 @@ clockit -c 2:00:00
 
 # Start a stopwatch
 clockit -s
+
+# Start a Pomodoro timer (25min work, 5min break)
+clockit -p
 ```
 
 For more examples and detailed usage, see the [Usage Guide](https://github.com/ioloej42/clockit/wiki/Usage-Guide) in the wiki.

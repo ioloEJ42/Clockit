@@ -29,6 +29,15 @@ clockit -c 0:75:90  # Same as 1:16:30
 clockit -s
 ```
 
+### Pomodoro Timer
+
+```bash
+# Start a Pomodoro timer (25min work, 5min break cycles)
+clockit -p
+# or
+clockit --pomodoro
+```
+
 ### Configuration Initialization
 
 To create a default configuration file:
@@ -53,6 +62,7 @@ When the timer is running:
 
 - Press `q` to quit
 - Press `Ctrl+C` to exit
+- During Pomodoro mode, press any key to proceed to the next session
 
 ## Configuration
 

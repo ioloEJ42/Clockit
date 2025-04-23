@@ -30,6 +30,10 @@ struct Cli {
     #[arg(short = 's', long = "stopwatch", default_value_t = false)]
     stopwatch: bool,
     
+    /// Start a Pomodoro timer (default: 25min work, 5min break)
+    #[arg(short = 'p', long = "pomodoro", default_value_t = false)]
+    pomodoro: bool,
+    
     /// Generate a default config file
     #[arg(long = "init-config", default_value_t = false)]
     init_config: bool,
@@ -118,6 +122,12 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
+    // Handle pomodoro mode
+    if cli.pomodoro {
+        println!("Starting Pomodoro timer (25min work, 5min break)");
+        return run_pomodoro(&config);
+    }
+
     // Handle countdown
     if let Some(time_str) = cli.countdown {
         match parse_time_string(&time_str) {
@@ -141,7 +151,7 @@ fn main() -> io::Result<()> {
     }
     
     // If no valid options provided, show usage
-    println!("No valid command specified. Use -c/--countdown TIME or -s/--stopwatch");
+    println!("No valid command specified. Use -c/--countdown TIME, -s/--stopwatch, or -p/--pomodoro");
     Ok(())
 }
 
@@ -373,6 +383,204 @@ fn show_time_up(stdout: &mut io::Stdout, config: &Config) -> io::Result<()> {
     
     Ok(())
 }
+
+/// Run the Pomodoro timer with default settings (25min work, 5min break)
+fn run_pomodoro(config: &Config) -> io::Result<()> {
+    let mut stdout = stdout();
+    let mut cycle = 1;
+    let work_time = 25 * 60; // 25 minutes in seconds
+    let break_time = 5 * 60; // 5 minutes in seconds
+    
+    // Setup terminal
+    terminal::enable_raw_mode()?;
+    stdout.execute(terminal::EnterAlternateScreen)?;
+    stdout.execute(cursor::Hide)?;
+
+    // Clear screen once at the beginning
+    stdout.execute(Clear(ClearType::All))?;
+    
+    loop {
+        // Work session
+        let session_name = format!("Work Session #{}", cycle);
+        if !run_pomodoro_session(&mut stdout, &session_name, work_time, config.countdown_color(), config)? {
+            break; // User quit
+        }
+        
+        // Show a message that it's break time
+        display_phase_change(&mut stdout, "Break Time!", config)?;
+        
+        // Break session
+        let session_name = format!("Break #{}", cycle);
+        if !run_pomodoro_session(&mut stdout, &session_name, break_time, config.stopwatch_color(), config)? {
+            break; // User quit
+        }
+        
+        // Show a message that it's work time again
+        display_phase_change(&mut stdout, "Back to Work!", config)?;
+        
+        // Increment cycle counter
+        cycle += 1;
+    }
+    
+    // Cleanup
+    stdout.execute(cursor::Show)?;
+    stdout.execute(terminal::LeaveAlternateScreen)?;
+    terminal::disable_raw_mode()?;
+    
+    println!("Pomodoro timer ended. Completed {} full cycles.", cycle - 1);
+    Ok(())
+}
+
+/// Display a phase change message between Pomodoro sessions
+/// Returns true if user wants to continue, false if they want to quit
+fn display_phase_change(stdout: &mut io::Stdout, message: &str, config: &Config) -> io::Result<bool> {
+    stdout.execute(Clear(ClearType::All))?;
+    
+    // Get terminal size
+    let (term_width, term_height) = terminal::size()?;
+    
+    // Display instructions at the top
+    stdout.execute(cursor::MoveTo(0, 0))?;
+    stdout.execute(style::PrintStyledContent(
+        "Press q or Ctrl+C to exit, any other key to continue".with(config.ui_text_color())
+    ))?;
+    
+    // Display the phase change message centered
+    let msg_x = (term_width as usize).saturating_sub(message.len()) / 2;
+    let msg_y = term_height / 2;
+    
+    stdout.execute(cursor::MoveTo(msg_x as u16, msg_y))?;
+    stdout.execute(style::PrintStyledContent(
+        message.to_string().with(config.times_up_color()).bold()
+    ))?;
+    
+    stdout.flush()?;
+    
+    // Wait for user input to continue or quit
+    if let Event::Key(KeyEvent { code, modifiers, .. }) = event::read()? {
+        if code == KeyCode::Char('q') || 
+           (code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)) {
+            return Ok(false);
+        }
+    }
+    
+    Ok(true)
+}
+
+/// Run a single session of the Pomodoro timer (either work or break)
+/// Returns true if the session completed normally, false if user quit
+fn run_pomodoro_session(
+    stdout: &mut io::Stdout, 
+    session_name: &str, 
+    duration_secs: u64, 
+    color: Color, 
+    config: &Config
+) -> io::Result<bool> {
+    let start_time = Instant::now();
+    let end_time = start_time + Duration::from_secs(duration_secs);
+    
+    // For tracking display changes
+    let mut last_display: Option<Vec<String>> = None;
+
+    // Clear screen
+    stdout.execute(Clear(ClearType::All))?;
+    
+    // Display instructions and session info
+    stdout.execute(cursor::MoveTo(0, 0))?;
+    stdout.execute(style::PrintStyledContent(
+        "Press q or Ctrl+C to exit".with(config.ui_text_color())
+    ))?;
+    
+    stdout.execute(cursor::MoveTo(0, 1))?;
+    stdout.execute(style::PrintStyledContent(
+        format!("Current: {}", session_name).with(config.ui_text_color())
+    ))?;
+    
+    // Main timer loop
+    loop {
+        // Check for exit key (q or Ctrl+C)
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(KeyEvent { code, modifiers, .. }) = event::read()? {
+                if code == KeyCode::Char('q') || 
+                   (code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)) {
+                    return Ok(false); // User quit
+                }
+            }
+        }
+        
+        let now = Instant::now();
+        if now >= end_time {
+            // Session complete
+            show_session_complete(stdout, session_name, config)?;
+            return Ok(true); // Session completed normally
+        }
+        
+        let remaining = end_time - now;
+        let remaining_secs = remaining.as_secs();
+        let minutes = remaining_secs / 60;
+        let seconds = remaining_secs % 60;
+        
+        // Format time
+        let display_time = format!("{}:{:02}", minutes, seconds);
+        
+        // Apply blinking effect if enabled
+        let display_with_blink = if config.blink_separator {
+            let blink_on = (now.duration_since(start_time).as_millis() / 500) % 2 == 0;
+            if blink_on { display_time } else { display_time.replace(':', " ") }
+        } else {
+            display_time
+        };
+        
+        // Get ASCII art representation
+        let ascii_time = digit::render_time(&display_with_blink);
+        
+        // Display ASCII art time centered on screen
+        let (term_width, term_height) = terminal::size()?;
+        let time_width = ascii_time[0].len() as u16;
+        let time_height = ascii_time.len() as u16;
+        
+        let x_pos = (term_width - time_width) / 2;
+        let y_pos = (term_height - time_height) / 2;
+        
+        // Use our stable display function to avoid flickering
+        stable_display(stdout, &ascii_time, &mut last_display, x_pos, y_pos, color)?;
+        
+        stdout.flush()?;
+        thread::sleep(Duration::from_millis(config.countdown_refresh_rate));
+    }
+}
+
+/// Show a session complete message
+fn show_session_complete(stdout: &mut io::Stdout, session_name: &str, config: &Config) -> io::Result<()> {
+    stdout.execute(Clear(ClearType::All))?;
+    
+    // Get terminal size
+    let (term_width, term_height) = terminal::size()?;
+    
+    // Display instructions at the top
+    stdout.execute(cursor::MoveTo(0, 0))?;
+    stdout.execute(style::PrintStyledContent(
+        "Press any key to continue".with(config.ui_text_color())
+    ))?;
+    
+    // Display session complete message
+    let message = format!("{} Complete!", session_name);
+    let msg_x = (term_width as usize).saturating_sub(message.len()) / 2;
+    let msg_y = term_height / 2;
+    
+    stdout.execute(cursor::MoveTo(msg_x as u16, msg_y))?;
+    stdout.execute(style::PrintStyledContent(
+        message.with(config.times_up_color()).bold()
+    ))?;
+    
+    stdout.flush()?;
+    
+    // Wait for any key press
+    event::read()?;
+    
+    Ok(())
+}
+
 fn run_stopwatch(config: &Config) -> io::Result<()> {
     let mut stdout = stdout();
     let start_time = Instant::now();
