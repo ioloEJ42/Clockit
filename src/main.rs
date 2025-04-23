@@ -30,9 +30,10 @@ struct Cli {
     #[arg(short = 's', long = "stopwatch", default_value_t = false)]
     stopwatch: bool,
     
-    /// Start a Pomodoro timer (default: 25min work, 5min break)
-    #[arg(short = 'p', long = "pomodoro", default_value_t = false)]
-    pomodoro: bool,
+    /// Start a Pomodoro timer (default: 25min work, 5min break, infinite cycles)
+    /// Optional format: WORK/BREAK/CYCLES (e.g., 25/5/4 for 25min work, 5min break, 4 cycles)
+    #[arg(short = 'p', long = "pomodoro", num_args = 0..=1, default_missing_value = "")]
+    pomodoro: Option<String>,
     
     /// Generate a default config file
     #[arg(long = "init-config", default_value_t = false)]
@@ -105,6 +106,52 @@ fn parse_time_string(time_str: &str) -> Result<u64, &'static str> {
     Ok(total_seconds)
 }
 
+/// Parse Pomodoro configuration string in format "WORK/BREAK/CYCLES"
+/// Returns (work_minutes, break_minutes, cycles)
+/// If no configuration is provided or parsing fails, returns default values (25, 5, 0)
+/// A cycle count of 0 means infinite cycles
+fn parse_pomodoro_config(config_str: &str) -> (u64, u64, u64) {
+    // Default values
+    let default_work = 25;
+    let default_break = 5;
+    let default_cycles = 0; // 0 means infinite
+    
+    let parts: Vec<&str> = config_str.split('/').collect();
+    
+    // If empty string or not enough parts, return defaults
+    if config_str.is_empty() || parts.len() < 1 {
+        return (default_work, default_break, default_cycles);
+    }
+    
+    // Parse work minutes
+    let work_minutes = match parts[0].parse::<u64>() {
+        Ok(w) if w > 0 => w,
+        _ => default_work,
+    };
+    
+    // Parse break minutes if provided
+    let break_minutes = if parts.len() > 1 {
+        match parts[1].parse::<u64>() {
+            Ok(b) if b > 0 => b,
+            _ => default_break,
+        }
+    } else {
+        default_break
+    };
+    
+    // Parse cycles if provided
+    let cycles = if parts.len() > 2 {
+        match parts[2].parse::<u64>() {
+            Ok(c) => c,
+            _ => default_cycles,
+        }
+    } else {
+        default_cycles
+    };
+    
+    (work_minutes, break_minutes, cycles)
+}
+
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
     
@@ -123,9 +170,11 @@ fn main() -> io::Result<()> {
     }
 
     // Handle pomodoro mode
-    if cli.pomodoro {
-        println!("Starting Pomodoro timer (25min work, 5min break)");
-        return run_pomodoro(&config);
+    if let Some(pomodoro_config) = cli.pomodoro.as_deref() {
+        let (work_minutes, break_minutes, cycles) = parse_pomodoro_config(pomodoro_config);
+        println!("Starting Pomodoro timer ({}min work, {}min break, {} cycles)",
+                work_minutes, break_minutes, if cycles == 0 { "∞".to_string() } else { cycles.to_string() });
+        return run_pomodoro_with_config(&config, work_minutes, break_minutes, cycles);
     }
 
     // Handle countdown
@@ -384,12 +433,20 @@ fn show_time_up(stdout: &mut io::Stdout, config: &Config) -> io::Result<()> {
     Ok(())
 }
 
-/// Run the Pomodoro timer with default settings (25min work, 5min break)
+/// Run the Pomodoro timer with default settings (25min work, 5min break, infinite cycles)
+/// This function is now used internally by run_pomodoro_with_config
+#[allow(dead_code)]
 fn run_pomodoro(config: &Config) -> io::Result<()> {
+    run_pomodoro_with_config(config, 25, 5, 0)
+}
+
+/// Run the Pomodoro timer with custom settings
+/// cycles = 0 means run indefinitely
+fn run_pomodoro_with_config(config: &Config, work_minutes: u64, break_minutes: u64, cycles: u64) -> io::Result<()> {
     let mut stdout = stdout();
     let mut cycle = 1;
-    let work_time = 25 * 60; // 25 minutes in seconds
-    let break_time = 5 * 60; // 5 minutes in seconds
+    let work_time = work_minutes * 60; // convert to seconds
+    let break_time = break_minutes * 60; // convert to seconds
     
     // Setup terminal
     terminal::enable_raw_mode()?;
@@ -400,14 +457,66 @@ fn run_pomodoro(config: &Config) -> io::Result<()> {
     stdout.execute(Clear(ClearType::All))?;
     
     loop {
+        // Check if we've reached the desired number of cycles
+        if cycles > 0 && cycle > cycles {
+            // Display a message that all cycles are completed
+            stdout.execute(Clear(ClearType::All))?;
+            
+            // Get terminal size for centering
+            let (term_width, term_height) = terminal::size()?;
+            
+            let message = format!("All {} Pomodoro cycles completed!", cycles);
+            let msg_x = (term_width as usize).saturating_sub(message.len()) / 2;
+            let msg_y = term_height / 2;
+            
+            stdout.execute(cursor::MoveTo(msg_x as u16, msg_y))?;
+            stdout.execute(style::PrintStyledContent(
+                message.with(config.times_up_color()).bold()
+            ))?;
+            
+            stdout.execute(cursor::MoveTo(0, 0))?;
+            stdout.execute(style::PrintStyledContent(
+                "Press any key to exit".with(config.ui_text_color())
+            ))?;
+            
+            stdout.flush()?;
+            
+            // Wait for user input to exit
+            event::read()?;
+            break;
+        }
+        
+        // Display cycle information
+        let cycle_info = if cycles > 0 {
+            format!("Cycle {}/{}", cycle, cycles)
+        } else {
+            format!("Cycle {}", cycle)
+        };
+        
         // Work session
         let session_name = format!("Work Session #{}", cycle);
+        
+        // Show work session info at top of terminal
+        stdout.execute(Clear(ClearType::All))?;
+        stdout.execute(cursor::MoveTo(0, 0))?;
+        stdout.execute(style::PrintStyledContent(
+            "Press q or Ctrl+C to exit".with(config.ui_text_color())
+        ))?;
+        
+        stdout.execute(cursor::MoveTo(0, 1))?;
+        stdout.execute(style::PrintStyledContent(
+            cycle_info.with(config.ui_text_color())
+        ))?;
+        
+        // Run work session
         if !run_pomodoro_session(&mut stdout, &session_name, work_time, config.countdown_color(), config)? {
             break; // User quit
         }
         
         // Show a message that it's break time
-        display_phase_change(&mut stdout, "Break Time!", config)?;
+        if !display_phase_change(&mut stdout, "Break Time!", config)? {
+            break; // User quit
+        }
         
         // Break session
         let session_name = format!("Break #{}", cycle);
@@ -416,7 +525,11 @@ fn run_pomodoro(config: &Config) -> io::Result<()> {
         }
         
         // Show a message that it's work time again
-        display_phase_change(&mut stdout, "Back to Work!", config)?;
+        if cycles == 0 || cycle < cycles {
+            if !display_phase_change(&mut stdout, "Back to Work!", config)? {
+                break; // User quit
+            }
+        }
         
         // Increment cycle counter
         cycle += 1;
@@ -481,9 +594,6 @@ fn run_pomodoro_session(
     
     // For tracking display changes
     let mut last_display: Option<Vec<String>> = None;
-
-    // Clear screen
-    stdout.execute(Clear(ClearType::All))?;
     
     // Display instructions and session info
     stdout.execute(cursor::MoveTo(0, 0))?;
@@ -491,7 +601,7 @@ fn run_pomodoro_session(
         "Press q or Ctrl+C to exit".with(config.ui_text_color())
     ))?;
     
-    stdout.execute(cursor::MoveTo(0, 1))?;
+    stdout.execute(cursor::MoveTo(0, 2))?;
     stdout.execute(style::PrintStyledContent(
         format!("Current: {}", session_name).with(config.ui_text_color())
     ))?;
@@ -547,6 +657,27 @@ fn run_pomodoro_session(
         
         stdout.flush()?;
         thread::sleep(Duration::from_millis(config.countdown_refresh_rate));
+    }
+}
+
+/// Format duration in seconds to a human-readable string
+/// This function is currently unused after removing the timer info display
+#[allow(dead_code)]
+fn format_duration(seconds: u64) -> String {
+    if seconds < 60 {
+        format!("{} seconds", seconds)
+    } else if seconds < 3600 {
+        let minutes = seconds / 60;
+        let secs = seconds % 60;
+        if secs == 0 {
+            format!("{} minutes", minutes)
+        } else {
+            format!("{} minutes {} seconds", minutes, secs)
+        }
+    } else {
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+        format!("{} hours {} minutes", hours, minutes)
     }
 }
 

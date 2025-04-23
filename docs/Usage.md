@@ -32,10 +32,20 @@ clockit -s
 ### Pomodoro Timer
 
 ```bash
-# Start a Pomodoro timer (25min work, 5min break cycles)
+# Start a Pomodoro timer with default settings (25min work, 5min break, infinite cycles)
 clockit -p
 # or
 clockit --pomodoro
+
+# Custom Pomodoro format: WORK/BREAK/CYCLES
+# 40min work, 10min break, 4 cycles
+clockit -p 40/10/4
+
+# 50min work, 10min break, infinite cycles
+clockit -p 50/10
+
+# 30min work, default 5min break, 8 cycles
+clockit -p 30//8
 ```
 
 ### Configuration Initialization

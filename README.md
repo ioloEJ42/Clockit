@@ -28,8 +28,11 @@ clockit -c 5:00
 # Start a stopwatch
 clockit -s
 
-# Start a Pomodoro timer
+# Start a Pomodoro timer (default settings)
 clockit -p
+
+# Start a Pomodoro timer with custom settings (40min work, 10min break, 4 cycles)
+clockit -p 40/10/4
 ```
 
 ## Installation
@@ -53,8 +56,11 @@ clockit -c 2:00:00
 # Start a stopwatch
 clockit -s
 
-# Start a Pomodoro timer (25min work, 5min break)
+# Start a Pomodoro timer (default: 25min work, 5min break)
 clockit -p
+
+# Start a custom Pomodoro timer (40min work, 10min break, 4 cycles)
+clockit -p 40/10/4
 ```
 
 For more examples and detailed usage, see the [Usage Guide](https://github.com/ioloej42/clockit/wiki/Usage-Guide) in the wiki.
