@@ -307,7 +307,13 @@ fn show_time_up(stdout: &mut io::Stdout, config: &Config) -> io::Result<()> {
     for i in 0..5 {
         stdout.execute(Clear(ClearType::All))?;
         
-        // Only display on even iterations (creates flashing effect)
+        // Always display instructions at the top
+        stdout.execute(cursor::MoveTo(0, 0))?;
+        stdout.execute(style::PrintStyledContent(
+            "Press q or Ctrl+C to exit".with(config.ui_text_color())
+        ))?;
+        
+        // Only display TIME'S UP on even iterations (creates flashing effect)
         if i % 2 == 0 {
             for (j, line) in time_up_text.iter().enumerate() {
                 // Center each line individually to ensure perfect alignment
@@ -319,12 +325,54 @@ fn show_time_up(stdout: &mut io::Stdout, config: &Config) -> io::Result<()> {
         }
         
         stdout.flush()?;
-        thread::sleep(Duration::from_millis(500));
+        
+        // Check for exit key during the flashing animation
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_millis(500) {
+            if event::poll(Duration::from_millis(50))? {
+                if let Event::Key(KeyEvent { code, modifiers, .. }) = event::read()? {
+                    if code == KeyCode::Char('q') || 
+                       (code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)) {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+    
+    // After flashing, keep showing the "TIME'S UP!" message until user exits
+    stdout.execute(Clear(ClearType::All))?;
+    
+    // Display instructions at the top
+    stdout.execute(cursor::MoveTo(0, 0))?;
+    stdout.execute(style::PrintStyledContent(
+        "Press q or Ctrl+C to exit".with(config.ui_text_color())
+    ))?;
+    
+    // Display final "TIME'S UP!" message
+    for (j, line) in time_up_text.iter().enumerate() {
+        stdout.execute(cursor::MoveTo(x_pos, y_pos + j as u16))?;
+        stdout.execute(style::PrintStyledContent(
+            line.to_string().with(config.times_up_color()).bold()
+        ))?;
+    }
+    
+    stdout.flush()?;
+    
+    // Wait for user to exit
+    loop {
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(KeyEvent { code, modifiers, .. }) = event::read()? {
+                if code == KeyCode::Char('q') || 
+                   (code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)) {
+                    break;
+                }
+            }
+        }
     }
     
     Ok(())
 }
-
 fn run_stopwatch(config: &Config) -> io::Result<()> {
     let mut stdout = stdout();
     let start_time = Instant::now();
