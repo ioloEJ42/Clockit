@@ -1,0 +1,14 @@
+[package]
+name = "clockit"
+version = "0.1.0"
+edition = "2021"
+description = "A beautiful terminal timer with ASCII art display"
+authors = ["Iolo Evans Jones <ioloevans42@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/ioloej42/clockit"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }  # Command line argument parsing
+crossterm = "0.27"  # Terminal control and colors
+chrono = "0.4"  # Time handling
+unicode-width = "0.1"  # Proper text alignment
