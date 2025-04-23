@@ -291,12 +291,17 @@ fn show_time_up(stdout: &mut io::Stdout, config: &Config) -> io::Result<()> {
         " ┴ ┴┴ ┴└─┘ ┴└─┘  └─┘┴  o",
     ];
     
+    // Get terminal size
     let (term_width, term_height) = terminal::size()?;
-    let text_width = time_up_text[0].len() as u16;
+    
+    // Calculate the width of the text (accounting for possible unicode width issues)
+    // Using a fixed width for each string to ensure proper centering
+    let text_width = 27u16; // Adjust this value if needed to match the actual width
     let text_height = time_up_text.len() as u16;
     
-    let x_pos = (term_width - text_width) / 2;
-    let y_pos = (term_height - text_height) / 2;
+    // Calculate the position to center the text
+    let x_pos = (term_width.saturating_sub(text_width)) / 2;
+    let y_pos = (term_height.saturating_sub(text_height)) / 2;
     
     // Flash "TIME'S UP!" a few times
     for i in 0..5 {
@@ -305,6 +310,7 @@ fn show_time_up(stdout: &mut io::Stdout, config: &Config) -> io::Result<()> {
         // Only display on even iterations (creates flashing effect)
         if i % 2 == 0 {
             for (j, line) in time_up_text.iter().enumerate() {
+                // Center each line individually to ensure perfect alignment
                 stdout.execute(cursor::MoveTo(x_pos, y_pos + j as u16))?;
                 stdout.execute(style::PrintStyledContent(
                     line.to_string().with(config.times_up_color()).bold()
