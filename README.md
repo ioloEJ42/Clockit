@@ -2,7 +2,7 @@
 
 A beautiful terminal-based timer with ASCII art display and customizable configuration.
 
-![Clockit Demo](demo.gif)
+![Clockit Demo](docs/demo.gif)
 
 ## Features
 
@@ -13,58 +13,29 @@ A beautiful terminal-based timer with ASCII art display and customizable configu
 - Configurable visual options
 - Simple keyboard controls
 
-## Installation
-
-### From Source
-
-1. Make sure you have Rust installed:
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-
-2. Clone the repository:
-   ```bash
-   git clone https://github.com/ioloej42/clockit
-   cd clockit
-   ```
-
-3. Build the project:
-   ```bash
-   cargo build --release
-   ```
-
-4. Install the binary:
-   ```bash
-   sudo cp target/release/clockit /usr/local/bin/
-   ```
-
-## Configuration
-
-Clockit uses a YAML configuration file to customize colors and behavior.
-
-### Creating the default configuration
-
-You can create the default configuration file by running:
+## Quick Start
 
 ```bash
+# Install
+cargo install --git https://github.com/ioloej42/clockit.git
+
+# Create config file
 clockit --init-config
+
+# Start a 5-minute timer
+clockit -c 5:00
+
+# Start a stopwatch
+clockit -s
 ```
 
-This will create a configuration file at:
-- Linux/macOS: `~/.config/clockit/config.yaml`
-- Windows: `C:\Users\<username>\AppData\Roaming\clockit\config.yaml`
+## Installation
 
-### Customization Options
-
-- **Colors**: Change the color of the clock digits, instructions, and time's up message
-- **Refresh Rate**: Adjust how frequently the timer updates
-- **Separator Blinking**: Enable/disable blinking of the colons and dots
-
-See the [sample configuration](docs/sample-config.yaml) for more details.
+For detailed installation instructions, see the [Installation Guide](https://github.com/ioloej42/clockit/wiki/Installation) in the wiki.
 
 ## Usage
 
-### Countdown Timer
+Clockit offers both countdown timer and stopwatch functionality:
 
 ```bash
 # Start a 5-minute timer
@@ -72,27 +43,39 @@ clockit -c 5:00
 
 # Start a 90-second timer
 clockit -c 1:30
-# or
-clockit -c 90
 
-# Start a 2-hour, 30-minute, and 15-second timer
-clockit -c 2:30:15
+# Start a 2-hour timer
+clockit -c 2:00:00
 
-# Timer handles overflow
-clockit -c 0:75:90  # Same as 1:16:30
-```
-
-### Stopwatch
-
-```bash
 # Start a stopwatch
 clockit -s
 ```
 
-### Controls
+For more examples and detailed usage, see the [Usage Guide](https://github.com/ioloej42/clockit/wiki/Usage-Guide) in the wiki.
 
-- Press `q` or `Ctrl+C` to exit at any time
+## Configuration
+
+Clockit can be customized through a YAML configuration file. To generate a default configuration:
+
+```bash
+clockit --init-config
+```
+
+For detailed configuration options, see the [Configuration Guide](https://github.com/ioloej42/clockit/wiki/Configuration) in the wiki.
+
+## Documentation
+
+For complete documentation, visit the [Clockit Wiki](https://github.com/ioloej42/clockit/wiki).
+
+- [Installation](https://github.com/ioloej42/clockit/wiki/Installation)
+- [Usage Guide](https://github.com/ioloej42/clockit/wiki/Usage-Guide)
+- [Configuration](https://github.com/ioloej42/clockit/wiki/Configuration)
+- [Troubleshooting](https://github.com/ioloej42/clockit/wiki/Troubleshooting)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
