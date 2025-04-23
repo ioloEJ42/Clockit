@@ -140,11 +140,11 @@ pub fn render_time(time_string: &str) -> Vec<String> {
           _ => {
               // For any other character (space, etc.) just add empty space
               digit_arts.push(vec![
-                  "   ",
-                  "   ",
-                  "   ",
-                  "   ",
-                  "   ",
+                  "     ",
+                  "     ",
+                  "     ",
+                  "     ",
+                  "     ",
               ]);
           }
       }

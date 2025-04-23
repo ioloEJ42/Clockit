@@ -1,7 +1,9 @@
 // src/main.rs
+mod config;
 mod digit;
 
 use clap::Parser;
+use config::Config;
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
@@ -27,6 +29,10 @@ struct Cli {
     /// Start a stopwatch
     #[arg(short = 's', long = "stopwatch", default_value_t = false)]
     stopwatch: bool,
+    
+    /// Generate a default config file
+    #[arg(long = "init-config", default_value_t = false)]
+    init_config: bool,
 }
 
 /// Parse a time string in format "HH:MM:SS" or "MM:SS" or "SS"
@@ -97,6 +103,20 @@ fn parse_time_string(time_str: &str) -> Result<u64, &'static str> {
 
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
+    
+    // Load configuration
+    let config = Config::load()?;
+    println!("Loaded configuration:");
+    println!("  blink_separator = {}", config.blink_separator);
+    println!("  countdown_color = {}", config.colors.countdown);
+    println!("  stopwatch_color = {}", config.colors.stopwatch);
+    println!("  countdown_refresh_rate = {}ms", config.countdown_refresh_rate);
+    
+    // Handle --init-config flag
+    if cli.init_config {
+        println!("Configuration file initialized.");
+        return Ok(());
+    }
 
     // Handle countdown
     if let Some(time_str) = cli.countdown {
@@ -106,7 +126,7 @@ fn main() -> io::Result<()> {
                     println!("Please specify a valid countdown time greater than zero.");
                     return Ok(());
                 }
-                return run_countdown(total_seconds);
+                return run_countdown(total_seconds, &config);
             },
             Err(e) => {
                 println!("Error parsing time: {}. Use format HH:MM:SS, MM:SS, or SS.", e);
@@ -117,7 +137,7 @@ fn main() -> io::Result<()> {
     
     // Handle stopwatch
     if cli.stopwatch {
-        return run_stopwatch();
+        return run_stopwatch(&config);
     }
     
     // If no valid options provided, show usage
@@ -166,7 +186,7 @@ fn stable_display(
     Ok(())
 }
 
-fn run_countdown(total_seconds: u64) -> io::Result<()> {
+fn run_countdown(total_seconds: u64, config: &Config) -> io::Result<()> {
     let mut stdout = stdout();
     let start_time = Instant::now();
     let end_time = start_time + Duration::from_secs(total_seconds);
@@ -185,7 +205,7 @@ fn run_countdown(total_seconds: u64) -> io::Result<()> {
     // Display instructions (only once)
     stdout.execute(cursor::MoveTo(0, 0))?;
     stdout.execute(style::PrintStyledContent(
-        "Press q or Ctrl+C to exit".with(Color::DarkGrey)
+        "Press q or Ctrl+C to exit".with(config.ui_text_color())
     ))?;
     
     // Main timer loop
@@ -203,7 +223,7 @@ fn run_countdown(total_seconds: u64) -> io::Result<()> {
         let now = Instant::now();
         if now >= end_time {
             // Timer complete
-            show_time_up(&mut stdout)?;
+            show_time_up(&mut stdout, config)?;
             break;
         }
         
@@ -221,8 +241,24 @@ fn run_countdown(total_seconds: u64) -> io::Result<()> {
             format!("{}:{:02}", minutes, seconds)
         };
         
+        // If blinking is enabled, alternate the colon visibility
+        let display_with_blink = if config.blink_separator {
+            // Toggle blink state about once per second
+            // Use the time since start for consistent blinking
+            let blink_on = (now.duration_since(start_time).as_millis() / 500) % 2 == 0;
+            
+            if blink_on {
+                display_time
+            } else {
+                // Replace colons with spaces when blinked off
+                display_time.replace(':', " ")
+            }
+        } else {
+            display_time
+        };
+        
         // Get ASCII art representation
-        let ascii_time = digit::render_time(&display_time);
+        let ascii_time = digit::render_time(&display_with_blink);
         
         // Display ASCII art time centered on screen
         let (term_width, term_height) = terminal::size()?;
@@ -233,10 +269,10 @@ fn run_countdown(total_seconds: u64) -> io::Result<()> {
         let y_pos = (term_height - time_height) / 2;
         
         // Use our stable display function to avoid flickering
-        stable_display(&mut stdout, &ascii_time, &mut last_display, x_pos, y_pos, Color::Cyan)?;
+        stable_display(&mut stdout, &ascii_time, &mut last_display, x_pos, y_pos, config.countdown_color())?;
         
         stdout.flush()?;
-        thread::sleep(Duration::from_millis(200));
+        thread::sleep(Duration::from_millis(config.countdown_refresh_rate));
     }
 
     // Cleanup
@@ -248,7 +284,7 @@ fn run_countdown(total_seconds: u64) -> io::Result<()> {
     Ok(())
 }
 
-fn show_time_up(stdout: &mut io::Stdout) -> io::Result<()> {
+fn show_time_up(stdout: &mut io::Stdout, config: &Config) -> io::Result<()> {
     let time_up_text = vec![
         "┌┬┐┬┌┬┐┌─┐ ┬┌─┐  ┬ ┬┌─┐┬",
         " │ ││││├┤  │└─┐  │ │├─┘│",
@@ -271,7 +307,7 @@ fn show_time_up(stdout: &mut io::Stdout) -> io::Result<()> {
             for (j, line) in time_up_text.iter().enumerate() {
                 stdout.execute(cursor::MoveTo(x_pos, y_pos + j as u16))?;
                 stdout.execute(style::PrintStyledContent(
-                    line.to_string().with(Color::Red).bold()
+                    line.to_string().with(config.times_up_color()).bold()
                 ))?;
             }
         }
@@ -283,7 +319,7 @@ fn show_time_up(stdout: &mut io::Stdout) -> io::Result<()> {
     Ok(())
 }
 
-fn run_stopwatch() -> io::Result<()> {
+fn run_stopwatch(config: &Config) -> io::Result<()> {
     let mut stdout = stdout();
     let start_time = Instant::now();
     
@@ -301,7 +337,7 @@ fn run_stopwatch() -> io::Result<()> {
     // Display instructions (only once)
     stdout.execute(cursor::MoveTo(0, 0))?;
     stdout.execute(style::PrintStyledContent(
-        "Press q or Ctrl+C to exit".with(Color::DarkGrey)
+        "Press q or Ctrl+C to exit".with(config.ui_text_color())
     ))?;
 
     // Main stopwatch loop
@@ -326,8 +362,23 @@ fn run_stopwatch() -> io::Result<()> {
         // Format time
         let display_time = format!("{}:{:02}.{:02}", minutes, seconds, centisecs);
         
+        // If blinking is enabled, alternate the colon visibility
+        let display_with_blink = if config.blink_separator {
+            // Toggle blink state about once per second
+            let blink_on = (elapsed.as_millis() / 500) % 2 == 0;
+            
+            if blink_on {
+                display_time
+            } else {
+                // Replace colons with spaces when blinked off
+                display_time.replace(':', " ")
+            }
+        } else {
+            display_time
+        };
+        
         // Get ASCII art representation
-        let ascii_time = digit::render_time(&display_time);
+        let ascii_time = digit::render_time(&display_with_blink);
         
         // Display ASCII art time centered on screen
         let (term_width, term_height) = terminal::size()?;
@@ -338,10 +389,10 @@ fn run_stopwatch() -> io::Result<()> {
         let y_pos = (term_height - time_height) / 2;
         
         // Use our stable display function
-        stable_display(&mut stdout, &ascii_time, &mut last_display, x_pos, y_pos, Color::Green)?;
+        stable_display(&mut stdout, &ascii_time, &mut last_display, x_pos, y_pos, config.stopwatch_color())?;
         
         stdout.flush()?;
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(config.stopwatch_refresh_rate));
     }
 
     // Cleanup

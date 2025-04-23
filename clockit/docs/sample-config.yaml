@@ -1,0 +1,31 @@
+# Clockit Configuration File
+#
+# Available colors: black, blue, cyan, dark_blue, dark_cyan, dark_green,
+# dark_grey, dark_green, dark_magenta, dark_red, dark_yellow, green, grey,
+# magenta, red, white, yellow
+#
+# countdown_refresh_rate: Time in ms between updates for countdown timer
+# stopwatch_refresh_rate: Time in ms between updates for stopwatch
+# blink_separator: Whether to make the colon/separators blink
+
+# Color scheme for different elements of the timer
+colors:
+  # Color for the countdown timer digits
+  countdown: "cyan"
+  
+  # Color for the stopwatch digits
+  stopwatch: "green"
+  
+  # Color for the "TIME'S UP!" message
+  times_up: "red"
+  
+  # Color for UI elements like instructions
+  ui_text: "grey"
+
+# Whether to make the separators (colon and dot) blink
+# Setting to true makes the timer more visually engaging
+blink_separator: true
+
+# Update frequency in milliseconds - lower = smoother but more CPU usage
+countdown_refresh_rate: 200
+stopwatch_refresh_rate: 100
