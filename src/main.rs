@@ -162,6 +162,9 @@ fn main() -> io::Result<()> {
     println!("  countdown_color = {}", config.colors.countdown);
     println!("  stopwatch_color = {}", config.colors.stopwatch);
     println!("  countdown_refresh_rate = {}ms", config.countdown_refresh_rate);
+    println!("  pomodoro_work_duration = {}min", config.pomodoro.work_duration);
+    println!("  pomodoro_break_duration = {}min", config.pomodoro.break_duration);
+    println!("  pomodoro_cycles = {}", if config.pomodoro.cycles == 0 { "∞".to_string() } else { config.pomodoro.cycles.to_string() });
     
     // Handle --init-config flag
     if cli.init_config {
@@ -171,7 +174,15 @@ fn main() -> io::Result<()> {
 
     // Handle pomodoro mode
     if let Some(pomodoro_config) = cli.pomodoro.as_deref() {
-        let (work_minutes, break_minutes, cycles) = parse_pomodoro_config(pomodoro_config);
+        // If custom parameters are provided, use them; otherwise, use config defaults
+        let (work_minutes, break_minutes, cycles) = if pomodoro_config.is_empty() {
+            // Use config file defaults
+            (config.pomodoro.work_duration, config.pomodoro.break_duration, config.pomodoro.cycles)
+        } else {
+            // Parse command line parameters
+            parse_pomodoro_config(pomodoro_config)
+        };
+        
         println!("Starting Pomodoro timer ({}min work, {}min break, {} cycles)",
                 work_minutes, break_minutes, if cycles == 0 { "∞".to_string() } else { cycles.to_string() });
         return run_pomodoro_with_config(&config, work_minutes, break_minutes, cycles);
@@ -508,8 +519,8 @@ fn run_pomodoro_with_config(config: &Config, work_minutes: u64, break_minutes: u
             cycle_info.with(config.ui_text_color())
         ))?;
         
-        // Run work session
-        if !run_pomodoro_session(&mut stdout, &session_name, work_time, config.countdown_color(), config)? {
+        // Run work session with is_work_session = true
+        if !run_pomodoro_session(&mut stdout, &session_name, work_time, true, config)? {
             break; // User quit
         }
         
@@ -520,7 +531,8 @@ fn run_pomodoro_with_config(config: &Config, work_minutes: u64, break_minutes: u
         
         // Break session
         let session_name = format!("Break #{}", cycle);
-        if !run_pomodoro_session(&mut stdout, &session_name, break_time, config.stopwatch_color(), config)? {
+        // Run break session with is_work_session = false
+        if !run_pomodoro_session(&mut stdout, &session_name, break_time, false, config)? {
             break; // User quit
         }
         
@@ -586,7 +598,7 @@ fn run_pomodoro_session(
     stdout: &mut io::Stdout, 
     session_name: &str, 
     duration_secs: u64, 
-    color: Color, 
+    is_work_session: bool, // New parameter to identify session type
     config: &Config
 ) -> io::Result<bool> {
     let start_time = Instant::now();
@@ -594,6 +606,13 @@ fn run_pomodoro_session(
     
     // For tracking display changes
     let mut last_display: Option<Vec<String>> = None;
+    
+    // Select color based on session type
+    let color = if is_work_session {
+        config.pomodoro_work_color()
+    } else {
+        config.pomodoro_break_color()
+    };
     
     // Display instructions and session info
     stdout.execute(cursor::MoveTo(0, 0))?;
@@ -656,7 +675,8 @@ fn run_pomodoro_session(
         stable_display(stdout, &ascii_time, &mut last_display, x_pos, y_pos, color)?;
         
         stdout.flush()?;
-        thread::sleep(Duration::from_millis(config.countdown_refresh_rate));
+        // Use the pomodoro-specific refresh rate
+        thread::sleep(Duration::from_millis(config.pomodoro.refresh_rate));
     }
 }
 

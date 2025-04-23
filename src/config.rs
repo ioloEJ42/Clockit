@@ -21,6 +21,14 @@ pub struct ColorScheme {
     /// Color for instructions and other UI text
     #[serde(default = "default_ui_text_color")]
     pub ui_text: String,
+    
+    /// Color for Pomodoro work sessions
+    #[serde(default = "default_pomodoro_work_color")]
+    pub pomodoro_work: String,
+    
+    /// Color for Pomodoro break sessions
+    #[serde(default = "default_pomodoro_break_color")]
+    pub pomodoro_break: String,
 }
 
 fn default_countdown_color() -> String {
@@ -37,6 +45,58 @@ fn default_times_up_color() -> String {
 
 fn default_ui_text_color() -> String {
     "grey".to_string()
+}
+
+fn default_pomodoro_work_color() -> String {
+    "red".to_string()
+}
+
+fn default_pomodoro_break_color() -> String {
+    "green".to_string()
+}
+
+/// Represents Pomodoro timer settings
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PomodoroSettings {
+    /// Default duration of work sessions in minutes
+    #[serde(default = "default_pomodoro_work_duration")]
+    pub work_duration: u64,
+    
+    /// Default duration of break sessions in minutes
+    #[serde(default = "default_pomodoro_break_duration")]
+    pub break_duration: u64,
+    
+    /// Default number of cycles (0 means infinite)
+    #[serde(default = "default_pomodoro_cycles")]
+    pub cycles: u64,
+    
+    /// Play sound when sessions end
+    #[serde(default = "default_pomodoro_sound")]
+    pub sound_enabled: bool,
+
+    /// Refresh rate in milliseconds for the pomodoro timer
+    #[serde(default = "default_pomodoro_refresh_rate")]
+    pub refresh_rate: u64,
+}
+
+fn default_pomodoro_work_duration() -> u64 {
+    25
+}
+
+fn default_pomodoro_break_duration() -> u64 {
+    5
+}
+
+fn default_pomodoro_cycles() -> u64 {
+    0 // 0 means infinite
+}
+
+fn default_pomodoro_sound() -> bool {
+    false
+}
+
+fn default_pomodoro_refresh_rate() -> u64 {
+    200
 }
 
 /// Configuration for the Clockit application
@@ -57,6 +117,10 @@ pub struct Config {
     /// Refresh rate in milliseconds for the stopwatch
     #[serde(default = "default_stopwatch_refresh_rate")]
     pub stopwatch_refresh_rate: u64,
+    
+    /// Pomodoro timer settings
+    #[serde(default)]
+    pub pomodoro: PomodoroSettings,
 }
 
 fn default_blink_separator() -> bool {
@@ -78,6 +142,20 @@ impl Default for ColorScheme {
             stopwatch: default_stopwatch_color(),
             times_up: default_times_up_color(),
             ui_text: default_ui_text_color(),
+            pomodoro_work: default_pomodoro_work_color(),
+            pomodoro_break: default_pomodoro_break_color(),
+        }
+    }
+}
+
+impl Default for PomodoroSettings {
+    fn default() -> Self {
+        PomodoroSettings {
+            work_duration: default_pomodoro_work_duration(),
+            break_duration: default_pomodoro_break_duration(),
+            cycles: default_pomodoro_cycles(),
+            sound_enabled: default_pomodoro_sound(),
+            refresh_rate: default_pomodoro_refresh_rate(),
         }
     }
 }
@@ -89,6 +167,7 @@ impl Default for Config {
             blink_separator: default_blink_separator(),
             countdown_refresh_rate: default_countdown_refresh_rate(),
             stopwatch_refresh_rate: default_stopwatch_refresh_rate(),
+            pomodoro: PomodoroSettings::default(),
         }
     }
 }
@@ -143,6 +222,13 @@ impl Config {
             # countdown_refresh_rate: Time in ms between updates for countdown timer\n\
             # stopwatch_refresh_rate: Time in ms between updates for stopwatch\n\
             # blink_separator: Whether to make the colon/separators blink\n\
+            #\n\
+            # Pomodoro settings:\n\
+            # work_duration: Duration of work sessions in minutes\n\
+            # break_duration: Duration of break sessions in minutes\n\
+            # cycles: Number of cycles to run (0 means infinite)\n\
+            # sound_enabled: Play sound when sessions end (not implemented yet)\n\
+            # refresh_rate: Update frequency in milliseconds\n\
             \n{}", yaml);
         
         fs::write(&config_path, commented_yaml)?;
@@ -195,6 +281,16 @@ impl Config {
     /// Get UI text color
     pub fn ui_text_color(&self) -> Color {
         self.parse_color(&self.colors.ui_text)
+    }
+    
+    /// Get Pomodoro work session color
+    pub fn pomodoro_work_color(&self) -> Color {
+        self.parse_color(&self.colors.pomodoro_work)
+    }
+    
+    /// Get Pomodoro break session color
+    pub fn pomodoro_break_color(&self) -> Color {
+        self.parse_color(&self.colors.pomodoro_break)
     }
 }
 

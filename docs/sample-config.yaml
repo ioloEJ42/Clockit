@@ -12,15 +12,21 @@
 colors:
   # Color for the countdown timer digits
   countdown: "cyan"
-  
+ 
   # Color for the stopwatch digits
   stopwatch: "green"
-  
+ 
   # Color for the "TIME'S UP!" message
   times_up: "red"
-  
+ 
   # Color for UI elements like instructions
   ui_text: "grey"
+  
+  # Color for Pomodoro work sessions
+  pomodoro_work: "red"
+  
+  # Color for Pomodoro break sessions
+  pomodoro_break: "green"
 
 # Whether to make the separators (colon and dot) blink
 # Setting to true makes the timer more visually engaging
@@ -29,3 +35,20 @@ blink_separator: true
 # Update frequency in milliseconds - lower = smoother but more CPU usage
 countdown_refresh_rate: 200
 stopwatch_refresh_rate: 100
+
+# Pomodoro timer settings
+pomodoro:
+  # Duration of work sessions in minutes
+  work_duration: 25
+  
+  # Duration of break sessions in minutes
+  break_duration: 5
+  
+  # Default number of cycles (0 means infinite)
+  cycles: 0
+  
+  # Play sound when sessions end (not implemented yet)
+  sound_enabled: false
+  
+  # Update frequency in milliseconds - lower = smoother but more CPU usage
+  refresh_rate: 200
